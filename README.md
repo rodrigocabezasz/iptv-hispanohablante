@@ -8,8 +8,10 @@ Sustituye `USUARIO` y `REPO` por tu usuario/organización y el nombre del reposi
 
 | Uso | URL |
 |-----|-----|
-| **Lista M3U** | `https://USUARIO.github.io/REPO/lista_tivimate.m3u` |
-| **EPG** | `https://USUARIO.github.io/REPO/epg_hispanohablante.xml.gz` |
+| **Lista M3U** | `https://rodrigocabezasz.github.io/iptv-hispanohablante/lista_tivimate.m3u` |
+| **EPG** | `https://rodrigocabezasz.github.io/iptv-hispanohablante/epg_hispanohablante.xml.gz` |
+| **Reporte (celular/PC)** | `https://rodrigocabezasz.github.io/iptv-hispanohablante/health_report.html` |
+| **Índice** | `https://rodrigocabezasz.github.io/iptv-hispanohablante/` |
 
 ### En TiviMate
 
@@ -30,15 +32,27 @@ Sustituye `USUARIO` y `REPO` por tu usuario/organización y el nombre del reposi
 python -m venv .venv
 # Windows:
 .venv\Scripts\activate
-pip install -r requirements.txt
 python main.py
 ```
 
+Con verificación de streams (recomendado en tu red/casa, no en CI):
+
+```bash
+python main.py --health-check
+```
+
+Eso prueba cada URL, deja solo las que responden, y genera un reporte HTML para revisar en el celular o PC:
+
+- `dist/health_report.html`
+- `dist/health_report.json`
+
+> Cursor **no puede controlar TiviMate en el televisor**. El health-check + reporte es la forma práctica de sacar basura/caídos antes de publicar.
+
 Salida en `dist/`:
 
-- `lista_tivimate.m3u`
-- `epg_hispanohablante.xml`
-- `epg_hispanohablante.xml.gz`
+- `lista_tivimate.m3u` (live español + cine/series + FAST Pluto/Samsung/TCL)
+- `epg_hispanohablante.xml` / `.xml.gz`
+- `health_report.html` (si usas `--health-check`)
 
 ## Publicar en GitHub
 

@@ -27,6 +27,23 @@ def normalize_name(name: str) -> str:
     return text
 
 
+def _fold(text: str) -> str:
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    return text.lower()
+
+
+def matches_spanish_keywords(channel: Channel, keywords: list[str]) -> bool:
+    haystack = _fold(f"{channel.name} {channel.group_title} {channel.tvg_id} {channel.language}")
+    return any(_fold(kw) in haystack for kw in keywords)
+
+
+def is_spanish_country(channel: Channel, allowed_countries: set[str]) -> bool:
+    if channel.country and channel.country.upper() in allowed_countries:
+        return True
+    return False
+
+
 def is_spanish_speaking(
     channel: Channel,
     allowed_countries: set[str],
@@ -36,13 +53,30 @@ def is_spanish_speaking(
         return True
     if "spa" in lang.split(";") or "es" in lang.split(";"):
         return True
-    # Playlist spa.m3u already is Spanish-language; keep entries with known ES countries
     if channel.country and channel.country.upper() in allowed_countries:
         return True
-    # spa.m3u entries without country still count as Spanish
     if not channel.country:
         return True
     return channel.country.upper() in allowed_countries
+
+
+def keep_channel(
+    channel: Channel,
+    filter_mode: str,
+    allowed_countries: set[str],
+    keywords: list[str],
+) -> bool:
+    if filter_mode == "spanish_playlist":
+        return is_spanish_speaking(channel, allowed_countries)
+    if filter_mode == "spanish_country_or_keywords":
+        return is_spanish_country(channel, allowed_countries) or matches_spanish_keywords(
+            channel, keywords
+        )
+    if filter_mode == "spanish_keywords":
+        return matches_spanish_keywords(channel, keywords)
+    if filter_mode == "all":
+        return True
+    return is_spanish_speaking(channel, allowed_countries)
 
 
 def drop_low_quality_flags(channel: Channel, strict: bool = False) -> bool:
@@ -55,7 +89,6 @@ def drop_low_quality_flags(channel: Channel, strict: bool = False) -> bool:
 
 
 def prefer_better(a: Channel, b: Channel) -> Channel:
-    """Pick the better of two duplicate candidates."""
     score_a = (
         a.quality_score,
         1 if a.tvg_id else 0,
@@ -96,8 +129,7 @@ def deduplicate(channels: list[Channel]) -> list[Channel]:
 
     by_name: dict[str, Channel] = {}
     for ch in list(by_id.values()) + no_id:
-        # Same country + same normalized name = duplicate brand
-        key = f"{ch.country}|{normalize_name(ch.name)}"
+        key = f"{ch.kind}|{ch.country}|{normalize_name(ch.name)}"
         if key in by_name:
             by_name[key] = prefer_better(by_name[key], ch)
         else:
@@ -109,6 +141,7 @@ def deduplicate(channels: list[Channel]) -> list[Channel]:
 def assign_groups(
     channels: list[Channel],
     mapping: dict,
+    group_prefix_by_source: dict[str, str] | None = None,
 ) -> list[Channel]:
     rules = mapping.get("rules", [])
     country_names: dict[str, str] = mapping.get("country_names", {})
@@ -116,15 +149,35 @@ def assign_groups(
         (re.compile("|".join(rule["match"]), re.IGNORECASE), rule["group"])
         for rule in rules
     ]
+    group_prefix_by_source = group_prefix_by_source or {}
 
     for ch in channels:
+        prefix = group_prefix_by_source.get(ch.source_name)
+        if prefix:
+            haystack = f"{ch.group_title} {ch.name}".lower()
+            matched = "Otros"
+            for pattern, group in compiled:
+                if pattern.search(haystack):
+                    matched = group
+                    break
+            ch.group_title = f"{prefix} | {matched}"
+            continue
+
+        if ch.kind == "movies":
+            country_label = country_names.get(ch.country.upper(), ch.country or "Internacional")
+            ch.group_title = f"Cine | {country_label}"
+            continue
+        if ch.kind == "series":
+            country_label = country_names.get(ch.country.upper(), ch.country or "Internacional")
+            ch.group_title = f"Series | {country_label}"
+            continue
+
         haystack = f"{ch.group_title} {ch.name}".lower()
         matched = None
         for pattern, group in compiled:
             if pattern.search(haystack):
                 matched = group
                 break
-
         country_label = country_names.get(ch.country.upper(), ch.country or "Internacional")
         if matched:
             ch.group_title = f"{matched} | {country_label}"
@@ -135,7 +188,7 @@ def assign_groups(
 
 def sort_channels(channels: list[Channel], mapping: dict) -> list[Channel]:
     order = mapping.get("group_order", [])
-    # Extract base category before " | "
+
     def base_group(title: str) -> str:
         return title.split("|", 1)[0].strip()
 
@@ -157,20 +210,61 @@ def filter_channels(
     channels: list[Channel],
     allowed_countries: set[str],
     mapping: dict,
+    keywords: list[str],
+    filter_mode: str = "spanish_playlist",
+    group_prefix: str | None = None,
     strict_geo: bool = False,
 ) -> list[Channel]:
     kept = [
         ch
         for ch in channels
-        if is_spanish_speaking(ch, allowed_countries) and drop_low_quality_flags(ch, strict_geo)
+        if keep_channel(ch, filter_mode, allowed_countries, keywords)
+        and drop_low_quality_flags(ch, strict_geo)
     ]
+    prefix_map = {ch.source_name: group_prefix for ch in kept if group_prefix}
     kept = deduplicate(kept)
-    kept = assign_groups(kept, mapping)
+    kept = assign_groups(kept, mapping, group_prefix_by_source=prefix_map)
     return sort_channels(kept, mapping)
+
+
+def process_all_sources(
+    channels: list[Channel],
+    allowed_countries: set[str],
+    mapping: dict,
+    keywords: list[str],
+    playlist_meta: list[dict],
+    strict_geo: bool = False,
+) -> list[Channel]:
+    meta_by_name = {p["name"]: p for p in playlist_meta}
+    buckets: list[Channel] = []
+    prefixes: dict[str, str] = {}
+
+    for ch in channels:
+        meta = meta_by_name.get(ch.source_name, {})
+        mode = meta.get("filter", "spanish_playlist")
+        if not keep_channel(ch, mode, allowed_countries, keywords):
+            continue
+        if not drop_low_quality_flags(ch, strict_geo):
+            continue
+        if meta.get("group_prefix"):
+            prefixes[ch.source_name] = meta["group_prefix"]
+        buckets.append(ch)
+
+    buckets = deduplicate(buckets)
+    buckets = assign_groups(buckets, mapping, group_prefix_by_source=prefixes)
+    return sort_channels(buckets, mapping)
 
 
 def summarize_by_country(channels: list[Channel]) -> dict[str, int]:
     counts: dict[str, int] = defaultdict(int)
     for ch in channels:
         counts[ch.country or "??"] += 1
+    return dict(sorted(counts.items(), key=lambda x: (-x[1], x[0])))
+
+
+def summarize_by_group(channels: list[Channel]) -> dict[str, int]:
+    counts: dict[str, int] = defaultdict(int)
+    for ch in channels:
+        base = ch.group_title.split("|", 1)[0].strip() if ch.group_title else "Otros"
+        counts[base] += 1
     return dict(sorted(counts.items(), key=lambda x: (-x[1], x[0])))

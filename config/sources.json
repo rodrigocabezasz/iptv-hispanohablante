@@ -3,7 +3,47 @@
     {
       "name": "spanish_language",
       "url": "https://iptv-org.github.io/iptv/languages/spa.m3u",
-      "description": "Canales con idioma español (incluye España y Latinoamérica)"
+      "kind": "live",
+      "filter": "spanish_playlist",
+      "description": "Canales con idioma español (España + Latinoamérica)"
+    },
+    {
+      "name": "movies",
+      "url": "https://iptv-org.github.io/iptv/categories/movies.m3u",
+      "kind": "movies",
+      "filter": "spanish_country_or_keywords",
+      "description": "Canales 24/7 de cine (filtrados a español/LATAM)"
+    },
+    {
+      "name": "series",
+      "url": "https://iptv-org.github.io/iptv/categories/series.m3u",
+      "kind": "series",
+      "filter": "spanish_country_or_keywords",
+      "description": "Canales 24/7 de series (filtrados a español/LATAM)"
+    },
+    {
+      "name": "pluto_fast",
+      "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/refs/heads/main/playlists/plutotv_all.m3u",
+      "kind": "fast",
+      "filter": "spanish_keywords",
+      "group_prefix": "FAST Pluto",
+      "description": "Pluto TV FAST en español / latino"
+    },
+    {
+      "name": "samsung_fast",
+      "url": "https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/refs/heads/main/playlists/samsungtvplus_all.m3u",
+      "kind": "fast",
+      "filter": "spanish_keywords",
+      "group_prefix": "FAST Samsung",
+      "description": "Samsung TV Plus FAST en español / latino"
+    },
+    {
+      "name": "tcl_fast",
+      "url": "https://www.apsattv.com/tcl.m3u",
+      "kind": "fast",
+      "filter": "spanish_keywords",
+      "group_prefix": "FAST TCL",
+      "description": "TCL Channel FAST en español"
     }
   ],
   "epg_countries": [
@@ -15,5 +55,19 @@
     "ES", "MX", "AR", "CL", "CO", "PE", "VE", "EC", "BO", "UY",
     "PY", "DO", "CR", "PA", "GT", "HN", "SV", "NI", "CU", "PR",
     "GQ", "AD"
-  ]
+  ],
+  "spanish_keywords": [
+    "espanol", "español", "spanish", "latino", "latam", "hispano",
+    "mexico", "méxico", "argentina", "chile", "colombia", "peru", "perú",
+    "venezuela", "ecuador", "bolivia", "uruguay", "paraguay", "cuba",
+    "españa", "spain", "telenovela", "novela", "univision", "telemundo",
+    "caracol", "azteca", "canal once", "chilevision", "telefe", "el trece",
+    "las estrellas", "foro tv", "canal 5", "tvn", "mega ", "la 1", "antena 3"
+  ],
+  "health_check": {
+    "timeout_seconds": 6,
+    "max_workers": 40,
+    "bytes_to_read": 2048,
+    "cache_hours": 12
+  }
 }

@@ -13,12 +13,21 @@ from src.epg_matcher import (
     filter_epg_files,
     load_epg_channel_ids,
 )
-from src.filter import deduplicate, filter_channels, sort_channels, summarize_by_country
+from src.filter import (
+    deduplicate,
+    process_all_sources,
+    sort_channels,
+    summarize_by_country,
+    summarize_by_group,
+)
+from src.health_check import check_channels, keep_healthy
 from src.parser import parse_m3u
+from src.report import write_health_report
 
 ROOT = Path(__file__).resolve().parent
 CONFIG_DIR = ROOT / "config"
 DATA_RAW = ROOT / "data" / "raw"
+DATA_CACHE = ROOT / "data" / "cache"
 DIST = ROOT / "dist"
 
 
@@ -31,29 +40,78 @@ def build_epg_urls(sources: dict) -> list[str]:
     return [template.format(code=code) for code in sources["epg_countries"]]
 
 
-def run(skip_epg: bool = False, epg_public_url: str | None = None) -> None:
+def run(
+    skip_epg: bool = False,
+    epg_public_url: str | None = None,
+    health_check: bool = False,
+    keep_unhealthy: bool = False,
+) -> None:
     sources = load_json(CONFIG_DIR / "sources.json")
     mapping = load_json(CONFIG_DIR / "categories_mapping.json")
     allowed = {c.upper() for c in sources["spanish_speaking_countries"]}
+    keywords = sources.get("spanish_keywords", [])
+    hc_cfg = sources.get("health_check", {})
 
     DATA_RAW.mkdir(parents=True, exist_ok=True)
+    DATA_CACHE.mkdir(parents=True, exist_ok=True)
     DIST.mkdir(parents=True, exist_ok=True)
 
     print("==> Descargando playlists M3U...")
     all_channels = []
     for playlist in sources["playlists"]:
         raw_path = DATA_RAW / f"{playlist['name']}.m3u"
-        content = download_text(playlist["url"], dest=raw_path)
+        try:
+            content = download_text(playlist["url"], dest=raw_path)
+        except Exception as exc:  # noqa: BLE001
+            print(f"  [aviso] {playlist['name']}: no se pudo descargar ({exc})")
+            continue
         parsed = parse_m3u(content)
+        for ch in parsed:
+            ch.source_name = playlist["name"]
+            ch.kind = playlist.get("kind", "live")
         print(f"  {playlist['name']}: {len(parsed)} canales")
         all_channels.extend(parsed)
 
-    print("==> Filtrando, deduplicando y ordenando...")
-    channels = filter_channels(all_channels, allowed, mapping, strict_geo=False)
+    print("==> Filtrando (español/LATAM + FAST), deduplicando y ordenando...")
+    channels = process_all_sources(
+        all_channels,
+        allowed,
+        mapping,
+        keywords,
+        sources["playlists"],
+        strict_geo=False,
+    )
     print(f"  Resultado: {len(channels)} canales únicos")
-    print("  Por país:")
-    for country, count in summarize_by_country(channels).items():
+    print("  Por grupo:")
+    for group, count in summarize_by_group(channels).items():
+        print(f"    {group}: {count}")
+    print("  Por país (live/movies/series):")
+    for country, count in list(summarize_by_country(channels).items())[:15]:
         print(f"    {country}: {count}")
+
+    if health_check:
+        print("==> Verificando disponibilidad de streams (health-check)...")
+        channels = check_channels(
+            channels,
+            timeout=float(hc_cfg.get("timeout_seconds", 6)),
+            max_workers=int(hc_cfg.get("max_workers", 40)),
+            bytes_to_read=int(hc_cfg.get("bytes_to_read", 2048)),
+            cache_path=DATA_CACHE / "health.json",
+            cache_hours=float(hc_cfg.get("cache_hours", 12)),
+        )
+        write_health_report(
+            channels,
+            DIST / "health_report.json",
+            DIST / "health_report.html",
+        )
+        ok = sum(1 for c in channels if c.health_ok)
+        fail = sum(1 for c in channels if c.health_ok is False)
+        print(f"  OK={ok} | FAIL={fail}")
+        print(f"  Reporte: {DIST / 'health_report.html'}")
+        if not keep_unhealthy:
+            before = len(channels)
+            channels = keep_healthy(channels)
+            print(f"  Lista final solo OK: {len(channels)} (antes {before})")
 
     epg_url_for_header = epg_public_url
     if not skip_epg:
@@ -66,7 +124,6 @@ def run(skip_epg: bool = False, epg_public_url: str | None = None) -> None:
         print("==> Alineando tvg-id con EPG...")
         epg_ids = load_epg_channel_ids(epg_paths)
         aligned = align_channels_to_epg(channels, epg_ids)
-        # Tras quitar sufijos @SD/@HD pueden quedar duplicados reales
         before = len(channels)
         channels = sort_channels(deduplicate(channels), mapping)
         print(
@@ -93,21 +150,38 @@ def run(skip_epg: bool = False, epg_public_url: str | None = None) -> None:
 
     out_m3u = DIST / "lista_tivimate.m3u"
     write_m3u(channels, out_m3u, epg_url=epg_url_for_header)
-    print(f"==> Lista lista: {out_m3u}")
+    print(f"==> Lista lista: {out_m3u} ({len(channels)} canales)")
     print("Listo.")
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Genera lista IPTV hispana + EPG para TiviMate")
+    parser = argparse.ArgumentParser(
+        description="Genera lista IPTV hispana + FAST + EPG para TiviMate"
+    )
     parser.add_argument("--skip-epg", action="store_true", help="Solo generar M3U")
     parser.add_argument(
         "--epg-url",
         default=None,
-        help="URL pública del EPG para poner en la cabecera url-tvg del M3U",
+        help="URL pública del EPG para url-tvg del M3U",
+    )
+    parser.add_argument(
+        "--health-check",
+        action="store_true",
+        help="Probar streams y generar health_report.html (recomendado en tu PC)",
+    )
+    parser.add_argument(
+        "--keep-unhealthy",
+        action="store_true",
+        help="Con --health-check, no borrar canales caídos de la lista",
     )
     args = parser.parse_args(argv)
     try:
-        run(skip_epg=args.skip_epg, epg_public_url=args.epg_url)
+        run(
+            skip_epg=args.skip_epg,
+            epg_public_url=args.epg_url,
+            health_check=args.health_check,
+            keep_unhealthy=args.keep_unhealthy,
+        )
     except KeyboardInterrupt:
         print("Cancelado.")
         return 130

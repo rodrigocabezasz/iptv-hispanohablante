@@ -1,16 +1,20 @@
 name: Build and Publish IPTV
 
 on:
-  schedule:
-    - cron: "0 6 * * *"
   workflow_dispatch:
+    inputs:
+      rebuild:
+        description: "Regenerar lista en el runner (puede fallar streams LATAM por geo)"
+        type: boolean
+        default: false
+      health_check:
+        description: "Aplicar health-check en el runner"
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths:
-      - "src/**"
-      - "config/**"
-      - "main.py"
-      - "requirements.txt"
+      - "published/**"
       - ".github/workflows/build-and-publish.yml"
 
 permissions:
@@ -23,41 +27,52 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  rebuild:
+    if: github.event_name == 'workflow_dispatch' && inputs.rebuild
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Detect Pages URL
-        id: pages
+      - name: Generate
         run: |
-          OWNER="${{ github.repository_owner }}"
-          REPO="${{ github.event.repository.name }}"
-          echo "epg_url=https://${OWNER}.github.io/${REPO}/epg_hispanohablante.xml.gz" >> "$GITHUB_OUTPUT"
-          echo "m3u_url=https://${OWNER}.github.io/${REPO}/lista_tivimate.m3u" >> "$GITHUB_OUTPUT"
-
-      - name: Generate playlist + EPG
-        run: python main.py --epg-url "${{ steps.pages.outputs.epg_url }}"
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+          EPG="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/epg_hispanohablante.xml.gz"
+          if [ "${{ inputs.health_check }}" = "true" ]; then
+            python main.py --epg-url "$EPG" --health-check
+          else
+            python main.py --epg-url "$EPG"
+          fi
+          mkdir -p published
+          cp -f dist/lista_tivimate.m3u dist/epg_hispanohablante.xml.gz published/
+          if [ -f dist/health_report.html ]; then cp -f dist/health_report.html dist/health_report.json published/; fi
+      - uses: actions/upload-artifact@v4
         with:
-          path: dist
+          name: published-rebuild
+          path: published
 
   deploy:
-    needs: build
     runs-on: ubuntu-latest
+    needs: [rebuild]
+    if: always() && (needs.rebuild.result == 'success' || needs.rebuild.result == 'skipped')
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Use rebuilt artifact if present
+        if: needs.rebuild.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: published-rebuild
+          path: published
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: published
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

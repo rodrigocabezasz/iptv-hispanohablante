@@ -12,9 +12,13 @@ class Channel:
     group_title: str = ""
     country: str = ""
     language: str = ""
+    source_name: str = ""
+    kind: str = "live"
     extra_attrs: dict[str, str] = field(default_factory=dict)
     vlc_opts: list[str] = field(default_factory=list)
     quality_score: int = 0
+    health_ok: bool | None = None
+    health_detail: str = ""
 
     @property
     def display_name(self) -> str:

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>IPTV Hispanohablante</title>
+  <style>
+    body { font-family: Segoe UI, system-ui, sans-serif; margin: 2rem; background: #0f1419; color: #e7ecf1; max-width: 720px; }
+    a { color: #7dd3fc; word-break: break-all; }
+    code { background: #15202b; padding: .15rem .4rem; border-radius: 6px; }
+    li { margin: .6rem 0; }
+  </style>
+</head>
+<body>
+  <h1>IPTV Hispanohablante → TiviMate</h1>
+  <p>Lista limpia (health-check desde red local) + EPG + reporte.</p>
+  <ul>
+    <li><strong>Lista M3U:</strong><br/><a href="./lista_tivimate.m3u">lista_tivimate.m3u</a></li>
+    <li><strong>EPG:</strong><br/><a href="./epg_hispanohablante.xml.gz">epg_hispanohablante.xml.gz</a></li>
+    <li><strong>Reporte de canales:</strong><br/><a href="./health_report.html">health_report.html</a> (ábrelo en el celular)</li>
+  </ul>
+  <p>Para regenerar en tu PC: <code>python main.py --health-check</code> y copia <code>dist/</code> → <code>published/</code>.</p>
+</body>
+</html>

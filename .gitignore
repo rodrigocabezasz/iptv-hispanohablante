@@ -1,8 +1,6 @@
 .env
 data/
-dist/*.xml
-dist/*.m3u
-dist/*.gz
+dist/*
 !dist/.gitkeep
 __pycache__/
 *.pyc
