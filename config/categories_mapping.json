@@ -1,0 +1,55 @@
+{
+  "defaults": {
+    "unknown": "Otros"
+  },
+  "rules": [
+    { "match": ["sport", "deport", "futbol", "fútbol", "golf", "tennis", "nba", "ufc"], "group": "Deportes" },
+    { "match": ["news", "noticia", "informativ", "diario", "radio.*noticia"], "group": "Noticias" },
+    { "match": ["movie", "cine", "film", "cinema", "series", "drama"], "group": "Cine y Series" },
+    { "match": ["kids", "infantil", "niñ", "cartoon", "animaci", "disney", "nick"], "group": "Infantiles" },
+    { "match": ["music", "música", "musica", "mtv", "radio"], "group": "Música" },
+    { "match": ["docu", "discovery", "history", "nat geo", "ciencia", "educativ"], "group": "Documentales" },
+    { "match": ["entertain", "entreten", "variety", "reality", "comedy", "humor"], "group": "Entretenimiento" },
+    { "match": ["religion", "iglesia", "fe ", "gospel", "catholic", "evangel"], "group": "Religión" },
+    { "match": ["shop", "compras", "televenta"], "group": "Compras" },
+    { "match": ["weather", "clima", "tiempo"], "group": "Clima" }
+  ],
+  "group_order": [
+    "Nacionales",
+    "Noticias",
+    "Deportes",
+    "Entretenimiento",
+    "Cine y Series",
+    "Infantiles",
+    "Documentales",
+    "Música",
+    "Religión",
+    "Clima",
+    "Compras",
+    "Otros"
+  ],
+  "country_names": {
+    "ES": "España",
+    "MX": "México",
+    "AR": "Argentina",
+    "CL": "Chile",
+    "CO": "Colombia",
+    "PE": "Perú",
+    "VE": "Venezuela",
+    "EC": "Ecuador",
+    "BO": "Bolivia",
+    "UY": "Uruguay",
+    "PY": "Paraguay",
+    "DO": "Rep. Dominicana",
+    "CR": "Costa Rica",
+    "PA": "Panamá",
+    "GT": "Guatemala",
+    "HN": "Honduras",
+    "SV": "El Salvador",
+    "NI": "Nicaragua",
+    "CU": "Cuba",
+    "PR": "Puerto Rico",
+    "GQ": "Guinea Ecuatorial",
+    "AD": "Andorra"
+  }
+}

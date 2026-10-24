@@ -1,0 +1,19 @@
+{
+  "playlists": [
+    {
+      "name": "spanish_language",
+      "url": "https://iptv-org.github.io/iptv/languages/spa.m3u",
+      "description": "Canales con idioma español (incluye España y Latinoamérica)"
+    }
+  ],
+  "epg_countries": [
+    "es", "mx", "ar", "cl", "co", "pe", "ve", "ec", "bo", "uy",
+    "py", "do", "cr", "pa", "gt", "hn", "sv", "ni"
+  ],
+  "epg_url_template": "https://iptv-epg.org/files/epg-{code}.xml.gz",
+  "spanish_speaking_countries": [
+    "ES", "MX", "AR", "CL", "CO", "PE", "VE", "EC", "BO", "UY",
+    "PY", "DO", "CR", "PA", "GT", "HN", "SV", "NI", "CU", "PR",
+    "GQ", "AD"
+  ]
+}

@@ -1,0 +1,2 @@
+# Opcional: mejora verificación SSL en algunos entornos Windows
+# certifi>=2024.0.0
