@@ -138,20 +138,45 @@ def deduplicate(channels: list[Channel]) -> list[Channel]:
     return list(by_name.values())
 
 
+# Categories that stay as a single global list (no country split).
+_FLAT_GROUPS = {
+    "Deportes",
+    "Entretenimiento",
+    "Cine",
+    "Series",
+    "Infantiles",
+    "Documentales",
+    "Música",
+    "Religión",
+    "Clima",
+    "Compras",
+}
+
+# Nacionales + Noticias collapse into the country name alone (Chile, Perú, …).
+_COUNTRY_BUCKETS = {"General", "Noticias", "Nacionales"}
+
+
+def _country_display_name(channel: Channel, mapping: dict) -> str | None:
+    code = (channel.country or "").upper().strip()
+    if not code:
+        return None
+    names = mapping.get("country_names", {})
+    return names.get(code)
+
+
 def assign_groups(
     channels: list[Channel],
     mapping: dict,
     group_prefix_by_source: dict[str, str] | None = None,
 ) -> list[Channel]:
-    """Assign flat group titles (Deportes, Cine, Series, …) without country splits."""
+    """Assign groups: thematic flats + country-only buckets for nacionales/noticias."""
     rules = mapping.get("rules", [])
     default_group = mapping.get("defaults", {}).get("unknown", "General")
     compiled = [
         (re.compile("|".join(rule["match"]), re.IGNORECASE), rule["group"])
         for rule in rules
     ]
-    # group_prefix_by_source kept for API compat; prefixes no longer create
-    # separate country/vendor buckets — categories stay flat.
+    # group_prefix_by_source kept for API compat; unused with flat+country scheme.
     _ = group_prefix_by_source or {}
 
     for ch in channels:
@@ -168,22 +193,39 @@ def assign_groups(
             if pattern.search(haystack):
                 matched = group
                 break
-        ch.group_title = matched or default_group
+        group = matched or default_group
+
+        if group in _FLAT_GROUPS:
+            ch.group_title = group
+            continue
+
+        # General / Noticias / Nacionales → just the country name.
+        if group in _COUNTRY_BUCKETS:
+            country_name = _country_display_name(ch, mapping)
+            ch.group_title = country_name or "General"
+            continue
+
+        ch.group_title = group
     return channels
 
 
 def sort_channels(channels: list[Channel], mapping: dict) -> list[Channel]:
-    order = mapping.get("group_order", [])
-
-    def base_group(title: str) -> str:
-        return title.split("|", 1)[0].strip()
+    order = list(mapping.get("group_order", []))
+    # Insert country names after Favoritos / before thematic groups.
+    country_names = list(mapping.get("country_names", {}).values())
+    insert_at = 1 if order and order[0] == "Favoritos" else 0
+    # Drop legacy Nacionales/Noticias placeholders from order.
+    order = [g for g in order if g not in {"Nacionales", "Noticias"}]
+    # Avoid duplicating General if countries already cover most channels.
+    for name in reversed(country_names):
+        if name not in order:
+            order.insert(insert_at, name)
 
     rank = {name: idx for idx, name in enumerate(order)}
 
     def sort_key(ch: Channel):
-        bg = base_group(ch.group_title)
         return (
-            rank.get(bg, 999),
+            rank.get(ch.group_title, 999),
             ch.group_title,
             normalize_name(ch.name),
             -ch.quality_score,
