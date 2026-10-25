@@ -143,33 +143,23 @@ def assign_groups(
     mapping: dict,
     group_prefix_by_source: dict[str, str] | None = None,
 ) -> list[Channel]:
+    """Assign flat group titles (Deportes, Cine, Series, …) without country splits."""
     rules = mapping.get("rules", [])
-    country_names: dict[str, str] = mapping.get("country_names", {})
+    default_group = mapping.get("defaults", {}).get("unknown", "General")
     compiled = [
         (re.compile("|".join(rule["match"]), re.IGNORECASE), rule["group"])
         for rule in rules
     ]
-    group_prefix_by_source = group_prefix_by_source or {}
+    # group_prefix_by_source kept for API compat; prefixes no longer create
+    # separate country/vendor buckets — categories stay flat.
+    _ = group_prefix_by_source or {}
 
     for ch in channels:
-        prefix = group_prefix_by_source.get(ch.source_name)
-        if prefix:
-            haystack = f"{ch.group_title} {ch.name}".lower()
-            matched = "Otros"
-            for pattern, group in compiled:
-                if pattern.search(haystack):
-                    matched = group
-                    break
-            ch.group_title = f"{prefix} | {matched}"
-            continue
-
         if ch.kind == "movies":
-            country_label = country_names.get(ch.country.upper(), ch.country or "Internacional")
-            ch.group_title = f"Cine | {country_label}"
+            ch.group_title = "Cine"
             continue
         if ch.kind == "series":
-            country_label = country_names.get(ch.country.upper(), ch.country or "Internacional")
-            ch.group_title = f"Series | {country_label}"
+            ch.group_title = "Series"
             continue
 
         haystack = f"{ch.group_title} {ch.name}".lower()
@@ -178,11 +168,7 @@ def assign_groups(
             if pattern.search(haystack):
                 matched = group
                 break
-        country_label = country_names.get(ch.country.upper(), ch.country or "Internacional")
-        if matched:
-            ch.group_title = f"{matched} | {country_label}"
-        else:
-            ch.group_title = f"Nacionales | {country_label}"
+        ch.group_title = matched or default_group
     return channels
 
 

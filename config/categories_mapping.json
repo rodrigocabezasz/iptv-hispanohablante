@@ -1,6 +1,6 @@
 {
   "defaults": {
-    "unknown": "Otros"
+    "unknown": "General"
   },
   "rules": [
     { "match": ["sport", "deport", "futbol", "fútbol", "golf", "tennis", "nba", "ufc", "mma"], "group": "Deportes" },
@@ -16,15 +16,13 @@
     { "match": ["weather", "clima", "tiempo"], "group": "Clima" }
   ],
   "group_order": [
-    "Nacionales",
+    "Favoritos",
+    "General",
     "Noticias",
     "Deportes",
     "Entretenimiento",
     "Cine",
     "Series",
-    "FAST Pluto",
-    "FAST Samsung",
-    "FAST TCL",
     "Infantiles",
     "Documentales",
     "Música",
